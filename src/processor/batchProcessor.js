@@ -46,9 +46,17 @@ export async function processColumnGroup(context, group, worksheet, portalUrl) {
         let successCount = 0;
         let skippedCount = 0;
         let failedCount = 0;
+        const cellStatuses = []; // Track individual cell statuses
         
         for (const vehicleData of group.vehicles) {
             const result = await processVehicle(page, vehicleData, groupLabel);
+            
+            // Record cell status for status worksheet
+            cellStatuses.push({
+                row: result.row,
+                column: result.column,
+                status: result.status
+            });
             
             if (result.status === 'success') successCount++;
             else if (result.status === 'skipped') skippedCount++;
@@ -56,7 +64,12 @@ export async function processColumnGroup(context, group, worksheet, portalUrl) {
         }
         
         logger.info(`${groupLabel}: Group processing completed`, { successCount, skippedCount, failedCount });
-        return { success: successCount, skipped: skippedCount, failed: failedCount };
+        return { 
+            success: successCount, 
+            skipped: skippedCount, 
+            failed: failedCount,
+            cellStatuses: cellStatuses
+        };
         
     } catch (error) {
         logger.exception(error, { function: 'processColumnGroup', column: group.columnLetter });
@@ -81,19 +94,35 @@ export async function processVehicleGroupsInParallel(context, vehicleGroups, wor
         // Wait for all groups to complete
         const results = await Promise.allSettled(processPromises);
         
-        // Aggregate results
+        // Aggregate results with column details
         let totalSuccess = 0;
         let totalSkipped = 0;
         let totalFailed = 0;
+        const columnResults = [];
+        const allCellStatuses = []; // Collect all cell statuses
         const failedGroups = [];
         
         results.forEach((result, index) => {
             const group = vehicleGroups[index];
             if (result.status === 'fulfilled') {
-                const { success, skipped, failed } = result.value;
+                const { success, skipped, failed, cellStatuses } = result.value;
                 totalSuccess += success;
                 totalSkipped += skipped;
                 totalFailed += failed;
+                
+                // Collect cell statuses
+                if (cellStatuses) {
+                    allCellStatuses.push(...cellStatuses);
+                }
+                
+                columnResults.push({
+                    columnLetter: group.columnLetter,
+                    totalRecords: group.vehicles.length,
+                    successCount: success,
+                    skippedCount: skipped,
+                    failedCount: failed
+                });
+                
                 logger.success(`Column Group ${group.columnLetter} completed`, { success, skipped, failed });
             } else {
                 failedGroups.push({
@@ -110,6 +139,15 @@ export async function processVehicleGroupsInParallel(context, vehicleGroups, wor
             totalFailed,
             failedGroups: failedGroups.length > 0 ? failedGroups : 'None'
         });
+        
+        return {
+            columnResults,
+            allCellStatuses,
+            totalSuccess,
+            totalSkipped,
+            totalFailed,
+            totalRecords: vehicleGroups.reduce((sum, g) => sum + g.vehicles.length, 0)
+        };
         
     } catch (error) {
         logger.exception(error, { function: 'processVehicleGroupsInParallel' });

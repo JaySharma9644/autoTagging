@@ -28,13 +28,18 @@ export const SELECTORS = {
         SEARCH_BUTTON: 'text="Search"',
         ALREADY_TAGGED: 'text="VEHICLE IS ALREADY TAGGED ON THIS PERMIT"',
     },
+
     
-    // Captcha selectors
-    CAPTCHA: {
-        CONTAINER: '#captchaContainer',
-        IMAGE: '#captchaImage',
-        INPUT: '#captchaInput',
-        AGREEMENT_CHECKBOX: '#agreementCheckbox',
+    
+    // CONTROLS  selectors
+    TAGCONTROLS: {
+        CONTAINER: 'text="VTS Status"',
+        VTS: 'text="VTS Active"',
+        SIM  :'text="SIM Validity"',
+        ACK:'text="I do here by declare that the mineral/ore to be carried by the truck has been checked by us to have action VTU and may be permitted to carry ore/mineral"',
+        CAPTCHATXT:'text="Captcha Text"',
+        CAPTCHAINPUT: '#captchaInput',  
+       
         SUBMIT_BUTTON: '#submitVehicleBtn',
     },
     

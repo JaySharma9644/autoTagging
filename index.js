@@ -8,6 +8,7 @@ import { initializeBrowser, closeBrowser } from './src/browser/browserManager.js
 import { loadExcelFile, saveExcelFile } from './src/excel/excelHandler.js';
 import { extractColumnWiseGroups } from './src/excel/dataExtractor.js';
 import { processVehicleGroupsInParallel } from './src/processor/batchProcessor.js';
+import { createStatusWorksheet, updateCellStatus, addLegendWorksheet } from './src/excel/statusReportGenerator.js';
 
 /**
  * Main execution block - orchestrates the entire RPA process
@@ -42,7 +43,26 @@ async function run() {
         
         // 4. Process all column groups in PARALLEL with independent logins
         logger.step('Starting parallel batch processing with independent logins');
-        await processVehicleGroupsInParallel(context, vehicleGroups, worksheet, CONFIG.PORTAL_URL);
+        const processingResults = await processVehicleGroupsInParallel(context, vehicleGroups, worksheet, CONFIG.PORTAL_URL);
+        
+        // 5. Create and populate status worksheet with color coding
+        logger.step('Generating color-coded status report');
+        const statusWorksheet = createStatusWorksheet(workbook, worksheet);
+        
+        if (processingResults && processingResults.allCellStatuses) {
+            // Apply colors to each processed cell
+            processingResults.allCellStatuses.forEach(cellStatus => {
+                updateCellStatus(statusWorksheet, cellStatus.row, cellStatus.column, cellStatus.status);
+            });
+            
+            logger.success('Color-coded status applied to all processed records', {
+                totalProcessed: processingResults.allCellStatuses.length
+            });
+        }
+        
+        // 6. Add legend worksheet
+        logger.step('Adding legend to workbook');
+        addLegendWorksheet(workbook);
         
         logger.success('RPA Process completed successfully');
 
@@ -50,13 +70,14 @@ async function run() {
         logger.exception(error, { stage: 'Main Execution' });
     } finally {
         // Save progress and cleanup
-        // if (workbook) {
-        //     try {
-        //         await saveExcelFile(workbook, CONFIG.EXCEL_FILE_PATH);
-        //     } catch (error) {
-        //         logger.exception(error, { stage: 'Excel Save' });
-        //     }
-        // }
+        if (workbook) {
+            try {
+                await saveExcelFile(workbook, CONFIG.EXCEL_FILE_PATH);
+                logger.success('Excel file with status report saved');
+            } catch (error) {
+                logger.exception(error, { stage: 'Excel Save' });
+            }
+        }
         
         if (browser) {
             await closeBrowser(browser);

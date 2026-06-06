@@ -19,7 +19,11 @@ export async function processVehicle(page, vehicleData, groupLabel) {
         const currentStatus = vehicleData.cell.value;
         if (currentStatus && (currentStatus === 'Success' || currentStatus.includes('Skipped'))) {
             logger.debug(`${groupLabel}: Vehicle ${vehicleData.vehicle} already processed`);
-            return { status: 'skipped' };
+            return { 
+                status: 'skipped',
+                row: vehicleData.row,
+                column: vehicleData.column
+            };
         }
         
         // Enter vehicle number and search  
@@ -38,15 +42,18 @@ export async function processVehicle(page, vehicleData, groupLabel) {
         //Check if already tagged
         const alreadyTaggedLocator = page.locator(SELECTORS.VEHICLE_PROCESSING.ALREADY_TAGGED);
         const isTagged = await alreadyTaggedLocator.isVisible({ timeout: 3000 }).catch(() => false);
+        if (isTagged) {
+            logger.warning(`${groupLabel}: Vehicle ${vehicleData.vehicle} is already tagged`);
+            return { 
+            status: 'skipped',
+            row: vehicleData.row,
+            column: vehicleData.column
+        }
+        }
         
-        // if (isTagged) {
-        //     logger.warning(`${groupLabel}: Vehicle ${vehicleData.vehicle} is already tagged`);
-        //     vehicleData.cell.value = 'Skipped - Already Tagged';
-        //     logger.logVehicleResult(vehicleData.vehicle, 'Skipped - Already Tagged', { row: vehicleData.row });
-        //     return { status: 'skipped' };
-        // }
-        
-        // logger.debug(`${groupLabel}: Vehicle not tagged, proceeding to captcha`);
+        logger.debug(`${groupLabel}: Vehicle not tagged, proceeding to captcha`);
+
+        await  page.waitForSelector(SELECTORS.TAGCONTROLS.VTS, { state: 'visible' });
         
         // // Solve Captcha
         // await page.waitForSelector(SELECTORS.CAPTCHA.CONTAINER, { state: 'visible' });
@@ -69,7 +76,11 @@ export async function processVehicle(page, vehicleData, groupLabel) {
         // logger.logVehicleResult(vehicleData.vehicle, 'Success', { row: vehicleData.row, captcha: captchaAnswer });
         
         //vehicleData.cell.value = 'Success';
-        return { status: 'success' };
+        return { 
+            status: 'success',
+            row: vehicleData.row,
+            column: vehicleData.column
+        };
         
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -84,6 +95,11 @@ export async function processVehicle(page, vehicleData, groupLabel) {
             logger.warning(`${groupLabel}: Failed to reload page`, { error: reloadError.message });
         }
         
-        return { status: 'failed', error: errorMessage };
+        return { 
+            status: 'failed', 
+            error: errorMessage,
+            row: vehicleData.row,
+            column: vehicleData.column
+        };
     }
 }

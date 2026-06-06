@@ -296,6 +296,68 @@ Debug: ${summary.logLevels.DEBUG}
         } catch (error) {
             console.error(`Failed to save session report: ${error.message}`);
         }
+        
+        // Clean up old history files - keep only latest 3
+        this.cleanupOldHistoryFiles();
+    }
+    
+    /**
+     * Clean up old history and report files - keep only latest 3
+     */
+    cleanupOldHistoryFiles() {
+        try {
+            const files = fs.readdirSync(this.historyDir);
+            
+            // Separate history and report files
+            const historyFiles = files
+                .filter(file => file.startsWith('history_') && file.endsWith('.txt'))
+                .map(file => ({
+                    name: file,
+                    path: path.join(this.historyDir, file),
+                    time: fs.statSync(path.join(this.historyDir, file)).mtime.getTime()
+                }))
+                .sort((a, b) => b.time - a.time); // Sort by newest first
+            
+            const reportFiles = files
+                .filter(file => file.startsWith('report_') && file.endsWith('.txt'))
+                .map(file => ({
+                    name: file,
+                    path: path.join(this.historyDir, file),
+                    time: fs.statSync(path.join(this.historyDir, file)).mtime.getTime()
+                }))
+                .sort((a, b) => b.time - a.time); // Sort by newest first
+            
+            // Delete old history files, keep only latest 3
+            if (historyFiles.length > 3) {
+                for (let i = 3; i < historyFiles.length; i++) {
+                    try {
+                        fs.unlinkSync(historyFiles[i].path);
+                        this.debug(`Deleted old history file: ${historyFiles[i].name}`);
+                    } catch (error) {
+                        this.warning(`Failed to delete history file: ${historyFiles[i].name}`, { error: error.message });
+                    }
+                }
+            }
+            
+            // Delete old report files, keep only latest 3
+            if (reportFiles.length > 3) {
+                for (let i = 3; i < reportFiles.length; i++) {
+                    try {
+                        fs.unlinkSync(reportFiles[i].path);
+                        this.debug(`Deleted old report file: ${reportFiles[i].name}`);
+                    } catch (error) {
+                        this.warning(`Failed to delete report file: ${reportFiles[i].name}`, { error: error.message });
+                    }
+                }
+            }
+            
+            this.info(`Cleanup completed. Keeping latest 3 history and report files.`, { 
+                historyFilesKept: Math.min(historyFiles.length, 3),
+                reportFilesKept: Math.min(reportFiles.length, 3)
+            });
+        } catch (error) {
+            this.warning('Failed to cleanup old history files', { error: error.message });
+        }
     }
     
     /**
